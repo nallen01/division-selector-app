@@ -135,6 +135,11 @@ public class MainActivity extends AppCompatActivity implements DataListener {
 
     }
 
+    @Override
+    public void dataUpdated() {
+
+    }
+
     private void logout() {
         SharedPreferences.Editor ed = mPrefs.edit();
         ed.remove("server_ip");

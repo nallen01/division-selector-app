@@ -10,7 +10,7 @@ import android.widget.Button;
 import android.widget.Spinner;
 import android.widget.SpinnerAdapter;
 
-public class MasterFragment extends Fragment {
+public class MasterFragment extends Fragment implements DataListener {
     private TcpClient tcpClient;
 
     private Spinner assignTeamSelector;
@@ -22,6 +22,8 @@ public class MasterFragment extends Fragment {
     private Spinner unassignTeamSelector;
     private ArrayAdapter<String> unassignTeamAdapter;
     private Button unassignButton;
+
+    private Button randomiseButton;
 
     public static MasterFragment newInstance() {
         MasterFragment fragment = new MasterFragment();
@@ -36,6 +38,15 @@ public class MasterFragment extends Fragment {
     public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setHasOptionsMenu(true);
+
+        tcpClient.addDataListener(this);
+    }
+
+    @Override
+    public void onDestroy() {
+        super.onDestroy();
+
+        tcpClient.removeDataListener(this);
     }
 
     @Override
@@ -60,17 +71,30 @@ public class MasterFragment extends Fragment {
         unassignButton = (Button) rootView.findViewById(R.id.unassign_button);
 
 
+        randomiseButton = (Button) rootView.findViewById(R.id.randomise_button);
+
+
         assignButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                // Code
+                String number = assignTeamAdapter.getItem(assignTeamSelector.getSelectedItemPosition());
+                String division = assignDivisionAdapter.getItem(assignDivisionSelector.getSelectedItemPosition());
+                tcpClient.requestAssignDivisionForTeam(number, division);
             }
         });
 
         unassignButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View v) {
-                // Code
+                String number = unassignTeamAdapter.getItem(unassignTeamSelector.getSelectedItemPosition());
+                tcpClient.requestRemoveDivisionForTeam(number);
+            }
+        });
+
+        randomiseButton.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                tcpClient.requestRandomiseRemainingTeams();
             }
         });
 
@@ -90,13 +114,32 @@ public class MasterFragment extends Fragment {
     }
 
     private void updateOptions() {
-        updateAdapter(assignTeamSelector, assignTeamAdapter, tcpClient.getAllUnassignedTeams());
-        updateAdapter(assignDivisionSelector, assignDivisionAdapter, tcpClient.getAllDivisions());
+        if(assignTeamSelector != null) {
+            updateAdapter(assignTeamSelector, assignTeamAdapter, tcpClient.getAllUnassignedTeams());
+            updateAdapter(assignDivisionSelector, assignDivisionAdapter, tcpClient.getAllDivisions());
 
-        assignButton.setEnabled(assignTeamSelector.isEnabled() && assignDivisionSelector.isEnabled());
+            assignButton.setEnabled(assignTeamSelector.isEnabled() && assignDivisionSelector.isEnabled());
 
-        updateAdapter(unassignTeamSelector, unassignTeamAdapter, tcpClient.getAllAssignedTeams());
+            updateAdapter(unassignTeamSelector, unassignTeamAdapter, tcpClient.getAllAssignedTeams());
 
-        unassignButton.setEnabled(unassignTeamSelector.isEnabled());
+            unassignButton.setEnabled(unassignTeamSelector.isEnabled());
+
+            randomiseButton.setEnabled(assignButton.isEnabled());
+        }
+    }
+
+    @Override
+    public void connectionDropped() {
+
+    }
+
+    @Override
+    public void dataUpdated() {
+        getActivity().runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                updateOptions();
+            }
+        });
     }
 }

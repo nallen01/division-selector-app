@@ -69,6 +69,13 @@ public class TcpClient {
         }
     }
 
+    private synchronized void fireUpdate() {
+        Iterator<DataListener> i = _listeners.iterator();
+        while(i.hasNext())  {
+            i.next().dataUpdated();
+        }
+    }
+
     public void cleanUp() {
         isConnected = false;
 
@@ -95,9 +102,20 @@ public class TcpClient {
         return false;
     }
 
-    /*private boolean sendCommand(ScoreField field, MessageType type, int value) {
-        return sendMessage("" + field.getValue() + ((char)29) + type.getValue() + ((char)29) + value);
-    }*/
+    private boolean sendCommand(MessageType type) {
+        return sendCommand(type, null);
+    }
+
+    private boolean sendCommand(MessageType type, String[] fields) {
+        String str = "" + type.getValue() + FIELD_SEPARATOR;
+        if(fields != null) {
+            for(String field : fields) {
+                str += field + FIELD_SEPARATOR;
+            }
+        }
+        str = str.substring(0, str.length()-1);
+        return sendMessage(str);
+    }
 
     private Thread listener;
 
@@ -144,7 +162,48 @@ public class TcpClient {
                                     try {
                                         String str = in.readLine();
 
-                                        if(str == null) {
+                                        if(str != null) {
+                                            String[] parts = str.split("" + FIELD_SEPARATOR, -1);
+                                            if(parts.length > 0) {
+                                                MessageType type = MessageType.fromInt(Integer.parseInt(parts[0]));
+
+                                                if(type == MessageType.CLEAR_ALL) {
+                                                    clear();
+                                                }
+                                                else if(type == MessageType.CLEAR_TEAMS) {
+                                                    clearTeams();
+                                                }
+                                                else if(type == MessageType.CLEAR_DIVISIONS) {
+                                                    clearDivisions();
+                                                }
+                                                else if(type == MessageType.ADD_TEAM) {
+                                                    if(parts.length == 2) {
+                                                        addTeam(parts[1]);
+                                                    }
+                                                }
+                                                else if(type == MessageType.ASSIGN_TEAM) {
+                                                    if(parts.length == 3) {
+                                                        assignDivisionForTeam(parts[1], parts[2]);
+                                                    }
+                                                }
+                                                else if(type == MessageType.UNASSIGN_TEAM) {
+                                                    if(parts.length == 2) {
+                                                        removeDivisionForTeam(parts[1]);
+                                                    }
+                                                }
+                                                else if(type == MessageType.ADD_DIVISION) {
+                                                    if(parts.length == 2) {
+                                                        addDivision(parts[1]);
+                                                    }
+                                                }
+                                                else if(type == MessageType.REMOVE_DIVISION) {
+                                                    if(parts.length == 2) {
+                                                        removeDivision(parts[1]);
+                                                    }
+                                                }
+                                            }
+                                        }
+                                        else {
                                             throw new Exception("Connection Dropped");
                                         }
 
@@ -181,24 +240,22 @@ public class TcpClient {
         return isConnected;
     }
 
-    public void clear() {
+    private void clear() {
         clearTeams();
         clearDivisions();
-
-        //fireUpdate();
     }
 
-    public void clearTeams() {
+    private void clearTeams() {
         teams.clear();
         teamsHaveDivisions.clear();
         for(String division : divisions) {
             divisionTeams.get(division).clear();
         }
 
-        //fireUpdate();
+        fireUpdate();
     }
 
-    public void clearDivisions() {
+    private void clearDivisions() {
         divisions.clear();
         divisionTeams.clear();
 
@@ -206,7 +263,7 @@ public class TcpClient {
             teamsHaveDivisions.put(team, false);
         }
 
-        //fireUpdate();
+        fireUpdate();
     }
 
     public void addDivision(String name) {
@@ -214,11 +271,11 @@ public class TcpClient {
             divisions.add(name);
             divisionTeams.put(name, new TreeSet<String>());
 
-            //fireUpdate();
+            fireUpdate();
         }
     }
 
-    public void removeDivision(String name) {
+    private void removeDivision(String name) {
         if(divisions.contains(name)) {
             divisions.remove(name);
 
@@ -228,31 +285,39 @@ public class TcpClient {
 
             divisionTeams.remove(name);
 
-            //fireUpdate();
+            fireUpdate();
         }
     }
 
-    public void addTeam(String team) {
+    private void addTeam(String team) {
         if(!teams.contains(team)) {
             teams.add(team);
             teamsHaveDivisions.put(team, false);
 
-            //fireUpdate();
+            fireUpdate();
         }
     }
 
-    public void removeDivisionForTeam(String number) {
+    public void requestRemoveDivisionForTeam(String number) {
+        sendCommand(MessageType.UNASSIGN_TEAM, new String[]{number});
+    }
+
+    private void removeDivisionForTeam(String number) {
         for(String division : divisions) {
-            if(divisionTeams.get(division).contains(number)) {
+            if (divisionTeams.get(division).contains(number)) {
                 divisionTeams.get(division).remove(number);
                 teamsHaveDivisions.put(number, false);
 
-                //fireUpdate();
+                fireUpdate();
             }
         }
     }
 
-    public void assignDivisionForTeam(String number, String division) {
+    public void requestAssignDivisionForTeam(String number, String division) {
+        sendCommand(MessageType.ASSIGN_TEAM, new String[]{number, division});
+    }
+
+    private void assignDivisionForTeam(String number, String division) {
         if(teams.contains(number)) {
             if(divisions.contains(division)) {
                 removeDivisionForTeam(number);
@@ -260,36 +325,13 @@ public class TcpClient {
                 divisionTeams.get(division).add(number);
                 teamsHaveDivisions.put(number, true);
 
-                //fireUpdate();
+                fireUpdate();
             }
         }
     }
 
-    public void randomiseRemainingTeams() {
-        String[] unassignedTeams = getAllUnassignedTeams();
-
-        for(int i=unassignedTeams.length; i>0; i--) {
-            int index = rand.nextInt(i);
-            assignDivisionForTeam(unassignedTeams[index], getNextDivisionToAssign());
-
-            for(int j=index; j<(i-1); j++) {
-                unassignedTeams[j] = unassignedTeams[j+1];
-            }
-        }
-    }
-
-    public String getNextDivisionToAssign() {
-        int current_minimum = Integer.MAX_VALUE;
-        String retval = null;
-
-        for(String division : divisions) {
-            if(divisionTeams.get(division).size() < current_minimum) {
-                current_minimum = divisionTeams.get(division).size();
-                retval = division;
-            }
-        }
-
-        return retval;
+    public void requestRandomiseRemainingTeams() {
+        sendCommand(MessageType.RANDOMISE_TEAMS);
     }
 
     public String[] getAllTeams() {
