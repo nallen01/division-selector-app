@@ -1,5 +1,7 @@
 package me.nallen.divsionselector.app;
 
+import android.app.AlertDialog;
+import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
 import android.support.v7.app.AppCompatActivity;
@@ -21,16 +23,14 @@ public class MainActivity extends AppCompatActivity implements DataListener {
         if(requestCode == ConnectActivity.ACTIVITY_REQUEST_CODE) {
             if(resultCode == RESULT_OK) {
                 String server_ip = data.getStringExtra("server_ip");
-                division = data.getStringExtra("division");
 
                 SharedPreferences.Editor ed = mPrefs.edit();
-                ed.putString("fox_ip", server_ip);
-                ed.putString("division", division);
+                ed.putString("server_ip", server_ip);
                 ed.commit();
 
-                Toaster.doToast(getApplicationContext(), "Successfully Connected as for division " + division);
+                Toaster.doToast(getApplicationContext(), "Successfully Connected");
 
-                showSelector();
+                showDivisionPicker();
             }
             else {
                 finish();
@@ -63,17 +63,41 @@ public class MainActivity extends AppCompatActivity implements DataListener {
         tcpClient.removeDataListener(this);
     }
 
+    private void showDivisionPicker() {
+        AlertDialog.Builder builder = new AlertDialog.Builder(this);
+        builder.setTitle("Select Division");
+        builder.setCancelable(false);
+
+        final String[] options = new String[tcpClient.getAllDivisions().length + 1];
+        int i = 0;
+        for(String option : tcpClient.getAllDivisions()) {
+            options[i++] = option;
+        }
+        options[i] = "All Divisions";
+
+        builder.setSingleChoiceItems(options, -1, new DialogInterface.OnClickListener() {
+            public void onClick(DialogInterface dialog, int item) {
+                division = options[item];
+
+                showSelector();
+
+                dialog.dismiss();
+            }
+        });
+
+        AlertDialog alert = builder.create();
+        alert.show();
+    }
+
     private void showSelector() {
         setTitle(division);
     }
 
     private void showConnectPage() {
-        String server_ip = mPrefs.getString("server_ip", "");
-        String division = mPrefs.getString("division", "");
+        String server_ip = mPrefs.getString("server_ip", null);
 
         Intent localIntent = new Intent(this, ConnectActivity.class);
         localIntent.putExtra("server_ip", server_ip);
-        localIntent.putExtra("division", division);
 
         startActivityForResult(localIntent, ConnectActivity.ACTIVITY_REQUEST_CODE);
     }
@@ -97,7 +121,6 @@ public class MainActivity extends AppCompatActivity implements DataListener {
     private void logout() {
         SharedPreferences.Editor ed = mPrefs.edit();
         ed.remove("server_ip");
-        ed.remove("division");
         ed.commit();
 
         tcpClient.logout();

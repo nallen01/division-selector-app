@@ -43,7 +43,6 @@ public class ConnectActivity extends AppCompatActivity {
 
         boolean auto_login = true;
 
-
         if(getIntent().getStringExtra("server_ip") != null) {
             server_ip_box.setText(getIntent().getStringExtra("server_ip"));
         }
@@ -98,7 +97,6 @@ public class ConnectActivity extends AppCompatActivity {
 
             Intent result = new Intent();
             result.putExtra("server_ip", server_ip);
-            result.putExtra("division", "Science");
             setResult(RESULT_OK, result);
             finish();
         }
