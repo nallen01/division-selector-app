@@ -4,6 +4,8 @@ import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.support.v4.app.Fragment;
+import android.support.v4.app.FragmentManager;
 import android.support.v7.app.AppCompatActivity;
 import android.os.Bundle;
 import android.view.Menu;
@@ -77,7 +79,10 @@ public class MainActivity extends AppCompatActivity implements DataListener {
 
         builder.setSingleChoiceItems(options, -1, new DialogInterface.OnClickListener() {
             public void onClick(DialogInterface dialog, int item) {
-                division = options[item];
+                if(item == options.length - 1)
+                    division = "";
+                else
+                    division = options[item];
 
                 showSelector();
 
@@ -90,7 +95,19 @@ public class MainActivity extends AppCompatActivity implements DataListener {
     }
 
     private void showSelector() {
+        Fragment fragment = null;
+
         setTitle(division);
+
+        if(division.equals("")) {
+            fragment = MasterFragment.newInstance();
+        }
+        else {
+            fragment = DivisionFragment.newInstance(division);
+        }
+
+        FragmentManager fragmentManager = getSupportFragmentManager();
+        fragmentManager.beginTransaction().replace(R.id.content_frame, fragment).commitAllowingStateLoss();
     }
 
     private void showConnectPage() {
